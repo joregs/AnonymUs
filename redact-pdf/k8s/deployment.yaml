@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redact-pdf
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redact-pdf
+  template:
+    metadata:
+      labels:
+        app: redact-pdf
+    spec:
+      containers:
+      - name: redact-pdf
+        image: joreg/redact-pdf:latest
+        ports:
+        - containerPort: 80
