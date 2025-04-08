@@ -1,6 +1,6 @@
 import requests
 
-url = "https://nginx.kube.isc.heia-fr.ch/redact/compute"
+url = "http://localhost:8000/redact/compute"
 
 file_path = "pdfs/in.pdf"
 word_to_redact = "Jorge"
