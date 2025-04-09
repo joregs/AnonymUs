@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: extract-text
+  namespace: anonymus
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: extract-text
+  template:
+    metadata:
+      labels:
+        app: extract-text
+    spec:
+      containers:
+      - name: extract-text
+        image: joreg/extract-text:latest
+        ports:
+        - containerPort: 80
