@@ -10,7 +10,7 @@ spec:
   - host: nginx.kube.isc.heia-fr.ch
     http:
       paths:
-      - path: /redact
+      - path: /redact-pdf
         pathType: Prefix
         backend:
           service:

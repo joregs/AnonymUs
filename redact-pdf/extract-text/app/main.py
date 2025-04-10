@@ -4,7 +4,6 @@ from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.responses import FileResponse
 from fastapi.responses import PlainTextResponse
 import shutil, os
-# from app.extractor import modify_pdf
 from app.extractor import extract_text
 
 app = FastAPI(root_path="/extract-text")
