@@ -2,7 +2,7 @@ import requests
 
 url = "http://localhost:8000/redact/compute"
 
-file_path = "pdfs/in.pdf"
+file_path = "../pdfs/in.pdf"
 word_to_redact = "Jorge"
 
 with open(file_path, "rb") as f:
