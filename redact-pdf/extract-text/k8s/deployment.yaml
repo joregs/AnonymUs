@@ -18,3 +18,4 @@ spec:
         image: joreg/extract-text:latest
         ports:
         - containerPort: 80
+

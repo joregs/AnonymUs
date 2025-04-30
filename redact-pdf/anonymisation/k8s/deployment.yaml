@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: anonymisation
+  namespace: anonymus
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: anonymisation
+  template:
+    metadata:
+      labels:
+        app: anonymisation
+    spec:
+      containers:
+      - name: anonymisation
+        imagePullPolicy: Always
+        image: philomeister/anonymisation:latest
+        ports:
+        - containerPort: 80
