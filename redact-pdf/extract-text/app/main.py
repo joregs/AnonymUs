@@ -1,6 +1,6 @@
 print(">>> FastAPI launched with root_path = /extract-text")
 
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.responses import PlainTextResponse
 import shutil, os, uuid
 from app.extractor import extract_text
@@ -35,8 +35,8 @@ def upload_pdf_to_s3(file_path, session_id, filename):
     return object_name
 
 @app.post("/compute")
-async def extract_and_upload(file: UploadFile = File(...)):
-    session_id = str(uuid.uuid4())
+async def extract_and_upload(session_id: str = Form(...), file: UploadFile = File(...)):
+    # session_id = str(uuid.uuid4())
     print(f"[{session_id}] Starting new session")
 
     input_path = f"/tmp/{session_id}_{file.filename}"

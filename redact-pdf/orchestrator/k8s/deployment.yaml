@@ -16,6 +16,6 @@ spec:
       containers:
         - name: orchestrator
           imagePullPolicy: Always
-          image: philomeister/orchestrator:latest
+          image: joreg/orchestrator:latest
           ports:
             - containerPort: 80

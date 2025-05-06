@@ -6,3 +6,4 @@ pdf2image
 Pillow
 python-multipart
 boto3
+pydantic

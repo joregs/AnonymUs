@@ -37,7 +37,16 @@ def modify_pdf(pdf_path, text_to_redact):
     print(f"    ➤ Input file: {pdf_path}")
     print(f"    ➤ Raw words string: '{text_to_redact}'")
 
-    text_to_redact_list = [w.strip() for w in text_to_redact.split(",") if w.strip()]
+      # --- 1. Normaliser en liste ------------------------------------------
+    if isinstance(text_to_redact, list):
+        text_to_redact_list = [w.strip() for w in text_to_redact if w.strip()]
+    else:  # str ou autre
+        text_to_redact_list = [
+            w.strip() for w in str(text_to_redact).replace(";", ",").split(",") if w.strip()
+        ]
+
+    print(f"[{datetime.now().isoformat()}] 🚀 Starting PDF modification")
+    print(f"    ➤ Input file: {pdf_path}")
     print(f"    ➤ Parsed redact list: {text_to_redact_list}")
 
     extracted_text, doc = extract_text_with_pymupdf(pdf_path)
