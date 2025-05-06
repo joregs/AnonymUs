@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: face-anonymisation
+  namespace: anonymus
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: face-anonymisation
+  template:
+    metadata:
+      labels:
+        app: face-anonymisation
+    spec:
+      containers:
+      - name: face-anonymisation
+        image: lucaswaltercoeur/face-anonymisation:latest
+        ports:
+        - containerPort: 80

@@ -1,11 +1,11 @@
-print(">>> ✅ FastAPI launched with root_path = /blur-faces")
+print(">>> ✅ FastAPI launched with root_path = /face-anonymisation")
 
 from fastapi import FastAPI, UploadFile, File
 from fastapi.responses import FileResponse, PlainTextResponse
 import shutil, uuid
 from app.blur_faces import blur_faces
 
-app = FastAPI(root_path="/blur-faces")
+app = FastAPI(root_path="/face-anonymisation")
 
 @app.post("/compute")
 async def process_pdf(file: UploadFile = File(...)):

@@ -57,7 +57,7 @@ def blur_faces(input_path: str, output_path: str):
         img_bytes = io.BytesIO()
         pil_img.save(img_bytes, format="PNG")
         img_bytes.seek(0)
-
+        
         width, height = pix.width, pix.height
         pageRect = fitz.Rect(0, 0, width, height)
         newPage = newDoc.new_page(width=width, height=height)

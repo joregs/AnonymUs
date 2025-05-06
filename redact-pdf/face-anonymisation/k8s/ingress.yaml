@@ -1,0 +1,19 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: face-anonymisation-ingress
+  namespace: anonymus
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+spec:
+  rules:
+  - host: nginx.kube.isc.heia-fr.ch
+    http:
+      paths:
+      - path: /face-anonymisation
+        pathType: Prefix
+        backend:
+          service:
+            name: face-anonymisation-service
+            port:
+              number: 80

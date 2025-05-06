@@ -27,6 +27,7 @@ templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 EXTRACT_URL = "http://extract-text-service.anonymus.svc.cluster.local/extract-text/compute"
 ANONYMISATION_URL = "http://anonymisation-service.anonymus.svc.cluster.local/anonymisation/compute"
 REDACT_URL = "http://redact-pdf-service.anonymus.svc.cluster.local/redact-pdf/compute"
+FACE_ANONYMISATION_URL = "http://face-anonymisation-service.anonymus.svc.cluster.local/face-anonymisation/compute"
 
 TIMEOUT = 60  # seconds per micro‑service call
 
@@ -75,7 +76,7 @@ async def process_pipeline(background_tasks: BackgroundTasks, file: UploadFile =
     # ---------------------------------------------------------------------
     # 2. Anonymisation
     # ---------------------------------------------------------------------
-    print(f"[{session_id}] 🕵️  Calling anonymisation …")
+    print(f"[{session_id}]  Calling anonymisation …")
     anonymise_resp = requests.post(
         ANONYMISATION_URL,
         json={"text": extracted_text},
@@ -88,7 +89,7 @@ async def process_pipeline(background_tasks: BackgroundTasks, file: UploadFile =
     print(f"[{session_id}] 🧼 Words to redact : {to_anonymize}")
 
     if not to_anonymize:
-        print(f"[{session_id}] ⚠️  Nothing to redact → returning original file")
+        print(f"[{session_id}]  Nothing to redact → returning original file")
         background_tasks.add_task(shutil.rmtree, session_dir, ignore_errors=True)
         return FileResponse(input_path, filename=file.filename, media_type="application/pdf")
 
@@ -100,26 +101,47 @@ async def process_pipeline(background_tasks: BackgroundTasks, file: UploadFile =
         "filename": file.filename,
         "word": to_anonymize,
     }
-    print(f"[{session_id}] ✏️  Calling redact‑pdf …")
+    print(f"[{session_id}] Calling redact‑pdf …")
     redact_resp = requests.post(REDACT_URL, json=payload, timeout=TIMEOUT * 2)
 
     if not redact_resp.ok:
         print(
-            f"[{session_id}] ❌ Redact service {redact_resp.status_code} → {redact_resp.text[:300]}"
+            f"[{session_id}] Redact service {redact_resp.status_code} → {redact_resp.text[:300]}"
         )
         raise HTTPException(status_code=502, detail="redact‑pdf service failed")
 
     # ---------------------------------------------------------------------
-    # 4. Sauvegarde + réponse
+    # 4. Anonymisation image
     # ---------------------------------------------------------------------
     redacted_path = os.path.join(session_dir, f"redacted_{file.filename}")
     with open(redacted_path, "wb") as f:
         f.write(redact_resp.content)
-    print(f"[{session_id}] ✅ Redacted PDF saved : {redacted_path}")
+    print(f"[{session_id}] Calling face-anonymisation …")
+    with open(redacted_path, "rb") as f:
+        face_anon_resp = requests.post(
+            FACE_ANONYMISATION_URL,
+            files={"file": (f"redacted_{file.filename}", f, "application/pdf")},
+            timeout=TIMEOUT,
+        )
+
+    if not face_anon_resp.ok:
+        print(
+            f"[{session_id}] Face-anonymisation service {face_anon_resp.status_code} → {face_anon_resp.text[:300]}"
+        )
+        raise HTTPException(status_code=502, detail="face-anonymisation service failed")
+
+    with open(redacted_path, "wb") as f:
+        f.write(face_anon_resp.content)
+    print(f"[{session_id}] Faces anonymised and saved: {redacted_path}")
+
+    # ---------------------------------------------------------------------
+    # 5. Sauvegarde + réponse
+    # ---------------------------------------------------------------------
+    print(f"[{session_id}] Redacted PDF saved : {redacted_path}")
 
     # Nettoyage asynchrone après l’envoi
     background_tasks.add_task(shutil.rmtree, session_dir, ignore_errors=True)
-    print(f"[{session_id}] 🧹 Cleanup scheduled")
+    print(f"[{session_id}] Cleanup scheduled")
 
     return FileResponse(
         redacted_path,

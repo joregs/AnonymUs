@@ -16,6 +16,6 @@ spec:
       containers:
         - name: orchestrator
           imagePullPolicy: Always
-          image: joreg/orchestrator:latest
+          image: lucaswaltercoeur/orchestrator:latest
           ports:
             - containerPort: 80
