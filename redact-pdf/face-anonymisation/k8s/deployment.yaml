@@ -15,6 +15,6 @@ spec:
     spec:
       containers:
       - name: face-anonymisation
-        image: lucaswaltercoeur/face-anonymisation:latest
+        image: joreg/face-anonymisation:latest
         ports:
         - containerPort: 80

@@ -113,16 +113,27 @@ async def process_pipeline(background_tasks: BackgroundTasks, file: UploadFile =
     # ---------------------------------------------------------------------
     # 4. Anonymisation image
     # ---------------------------------------------------------------------
-    redacted_path = os.path.join(session_dir, f"redacted_{file.filename}")
-    with open(redacted_path, "wb") as f:
-        f.write(redact_resp.content)
-    print(f"[{session_id}] Calling face-anonymisation …")
-    with open(redacted_path, "rb") as f:
-        face_anon_resp = requests.post(
-            FACE_ANONYMISATION_URL,
-            files={"file": (f"redacted_{file.filename}", f, "application/pdf")},
-            timeout=TIMEOUT,
+    # object_name = redact_resp
+    try:
+        object_name = redact_resp.json()["filename"]
+    except (ValueError, KeyError):
+        raise HTTPException(
+            status_code=502,
+            detail="redact-pdf service: réponse JSON inattendue",
         )
+
+    
+
+    print(f"[{session_id}] Calling face-anonymisation …")
+
+    payload = {
+        "session_id": session_id,
+        "filename": object_name,
+        # "word": to_anonymize,
+    }
+
+    # ...
+    face_anon_resp = requests.post(FACE_ANONYMISATION_URL, json=payload, timeout=TIMEOUT * 2)
 
     if not face_anon_resp.ok:
         print(
@@ -130,9 +141,12 @@ async def process_pipeline(background_tasks: BackgroundTasks, file: UploadFile =
         )
         raise HTTPException(status_code=502, detail="face-anonymisation service failed")
 
-    with open(redacted_path, "wb") as f:
+    redacted_path = os.path.join(session_dir, f"redacted_{file.filename}")
+    with open(redacted_path, "wb") as f:  # ✅ Fichier de sortie correct
         f.write(face_anon_resp.content)
+
     print(f"[{session_id}] Faces anonymised and saved: {redacted_path}")
+
 
     # ---------------------------------------------------------------------
     # 5. Sauvegarde + réponse

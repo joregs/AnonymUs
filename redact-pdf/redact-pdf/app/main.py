@@ -64,8 +64,27 @@ class RedactPayload(BaseModel):
         return [w.strip() for w in str(v).replace(";", ",").split(",") if w.strip()]
 
 
+def upload_pdf_to_s3(file_path, session_id, filename):
+    s3 = boto3.client(
+        "s3",
+        endpoint_url=endpoint_url,
+        aws_access_key_id=access_key,
+        aws_secret_access_key=secret_key,
+        config=Config(signature_version='s3v4'),
+        region_name="us-east-1"
+    )
+    try:
+        s3.head_bucket(Bucket=bucket_name)
+    except:
+        s3.create_bucket(Bucket=bucket_name)
 
-@app.post("/compute", response_class=FileResponse)
+    object_name = f"sessions/{session_id}/{filename}"
+    s3.upload_file(file_path, bucket_name, object_name)
+    print(f"File '{file_path}' uploaded to '{bucket_name}/{object_name}'")
+    return object_name
+
+
+@app.post("/compute")
 async def redact_pdf(payload: RedactPayload):
     session_id = payload.session_id
     filename = payload.filename
@@ -82,11 +101,9 @@ async def redact_pdf(payload: RedactPayload):
         output_path = modify_pdf(input_path, words)
         log(f"✅ PDF caviardé : {output_path}")
 
-        return FileResponse(
-            output_path,
-            filename=os.path.basename(output_path),
-            media_type="application/pdf",
-        )
+        object_name = upload_pdf_to_s3(output_path, session_id, filename)
+
+        return {"filename": filename}
 
     except Exception as exc:  # pylint: disable=broad-except
         log("❌ Exception pendant la redaction")
