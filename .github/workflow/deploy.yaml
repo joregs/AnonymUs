@@ -1,0 +1,36 @@
+name: Deploy to Kubernetes
+
+on:
+  push:
+    branches: 
+      - test-workflow
+      - main
+    paths:
+      - 'redact-pdf/**/k8s/**'
+      - '.github/workflows/deploy.yml'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: v1.27.3
+
+      - name: Configure Kubeconfig
+        run: |
+          echo "${{ secrets.KUBECONFIG_DEV }}" > kubeconfig
+          export KUBECONFIG=$(pwd)/kubeconfig
+
+      - name: Apply all k8s resources
+        run: |
+          kubectl apply -f redact-pdf/anonymisation/k8s
+          kubectl apply -f redact-pdf/extract-text/k8s
+          kubectl apply -f redact-pdf/redact-pdf/k8s
+          kubectl apply -f redact-pdf/face-anonymisation/k8s
+          kubectl apply -f redact-pdf/orchestrator/k8s
