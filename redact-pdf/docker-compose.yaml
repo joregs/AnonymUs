@@ -1,4 +1,4 @@
-# Docker compose pour faire tourner le pipeline en local
+# Docker compose pour faire tourner le pipeline en local ok
 version: '3.9'
 
 services:
