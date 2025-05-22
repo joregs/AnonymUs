@@ -1,0 +1,50 @@
+# Docker compose pour faire tourner le pipeline en local
+version: '3.9'
+
+services:
+
+  orchestrator:
+    build:
+      context: ./orchestrator
+    image: joreg/orchestrator:latest
+    ports:
+      - "8000:80"
+    depends_on:
+      - extract-text
+      - anonymisation
+      - redact-pdf
+      - face-anonymisation
+    environment:
+      - PYTHONUNBUFFERED=1
+
+  extract-text:
+    build:
+      context: ./extract-text
+    image: joreg/extract-text:latest
+    environment:
+      - PYTHONUNBUFFERED=1
+
+  anonymisation:
+    build:
+      context: ./anonymisation
+    image: joreg/anonymisation:latest
+    environment:
+      - PYTHONUNBUFFERED=1
+
+  redact-pdf:
+    build:
+      context: ./redact-pdf
+    image: joreg/redact-pdf:latest
+    environment:
+      - PYTHONUNBUFFERED=1
+
+  face-anonymisation:
+    build:
+      context: ./face-anonymisation
+    image: joreg/face-anonymisation:latest
+    environment:
+      - PYTHONUNBUFFERED=1
+
+networks:
+  default:
+    name: anonymus-net

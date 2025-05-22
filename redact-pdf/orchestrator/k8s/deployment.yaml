@@ -19,3 +19,13 @@ spec:
           image: joreg/orchestrator:latest
           ports:
             - containerPort: 80
+      env:
+        - name: EXTRACT_URL
+          value: http://extract-text.anonymus.svc.cluster.local/extract-text/compute
+        - name: ANONYMISATION_URL
+          value: http://anonymisation.anonymus.svc.cluster.local/anonymisation/compute
+        - name: REDACT_URL
+          value: http://redact-pdf.anonymus.svc.cluster.local/redact-pdf/compute
+        - name: FACE_ANONYMISATION_URL
+          value: http://face-anonymisation.anonymus.svc.cluster.local/face-anonymisation/compute
+

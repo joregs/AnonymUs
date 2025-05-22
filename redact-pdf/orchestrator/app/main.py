@@ -24,11 +24,10 @@ templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 # ---------------------------------------------------------------------------
 # Micro‑service endpoints (cluster‑local)
 # ---------------------------------------------------------------------------
-EXTRACT_URL = "http://extract-text-service.anonymus.svc.cluster.local/extract-text/compute"
-ANONYMISATION_URL = "http://anonymisation-service.anonymus.svc.cluster.local/anonymisation/compute"
-REDACT_URL = "http://redact-pdf-service.anonymus.svc.cluster.local/redact-pdf/compute"
-FACE_ANONYMISATION_URL = "http://face-anonymisation-service.anonymus.svc.cluster.local/face-anonymisation/compute"
-
+EXTRACT_URL = os.getenv("EXTRACT_URL", "http://extract-text/extract-text/compute")
+ANONYMISATION_URL = os.getenv("ANONYMISATION_URL", "http://anonymisation/anonymisation/compute")
+REDACT_URL = os.getenv("REDACT_URL", "http://redact-pdf/redact-pdf/compute")
+FACE_ANONYMISATION_URL = os.getenv("FACE_ANONYMISATION_URL", "http://face-anonymisation/face-anonymisation/compute")
 TIMEOUT = 60  # seconds per micro‑service call
 
 
