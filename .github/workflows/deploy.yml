@@ -28,6 +28,11 @@ jobs:
           chmod 600 $HOME/.kube/config
           echo "KUBECONFIG=$HOME/.kube/config" >> $GITHUB_ENV
 
+      - name: Debug context
+        run: |
+          kubectl config get-contexts
+          kubectl config current-context
+          kubectl get ns
       
       - name: Set images to sha tags
         env:
