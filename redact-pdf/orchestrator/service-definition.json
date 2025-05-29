@@ -1,0 +1,19 @@
+{
+  "name":       "Document Anonymisation Pipeline",
+  "slug":       "anonym-us-pdf",
+  "url":        "https://anonymus.kube.isc.heia-fr.ch",
+  "summary":    "Extrait le texte d’un PDF, supprime les informations sensibles et anonymise les visages",
+  "description":"Pipeline PDF complète (texte + images).",
+  "status":     "available",
+  "data_in_fields": [
+    {"name": "pdf", "type": ["application/pdf"]}
+  ],
+  "data_out_fields": [
+    {"name": "redacted_pdf", "type": ["application/pdf"]}
+  ],
+  "tags": [
+    {"name": "Natural Language Processing", "acronym": "NLP"},
+    {"name": "Image Processing",           "acronym": "IP"}
+  ],
+  "has_ai": false
+}

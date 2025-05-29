@@ -30,6 +30,7 @@ SCORE_THRESHOLD  = 0.01
 # MODEL LOADING
 # ────────────────────────────────────────────────────────────────────────────
 if not Path(BASE_MODEL_PATH).is_dir():
+    
     raise RuntimeError("Model directory missing")
 
 tokenizer = AutoTokenizer.from_pretrained(BASE_MODEL_PATH, local_files_only=True)

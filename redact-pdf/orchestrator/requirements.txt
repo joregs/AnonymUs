@@ -3,3 +3,4 @@ uvicorn
 requests
 python-multipart
 jinja2
+boto3
