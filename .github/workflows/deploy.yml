@@ -22,10 +22,9 @@ jobs:
 
      
       - name: Install kubeconfig
-        shell: bash
         run: |
           mkdir -p $HOME/.kube
-          echo "${{ secrets.KUBECONFIG_DEV }}" | base64 -d > $HOME/.kube/config
+          echo "${{ secrets.KUBECONFIG_DEV }}" > $HOME/.kube/config
           chmod 600 $HOME/.kube/config
           echo "KUBECONFIG=$HOME/.kube/config" >> $GITHUB_ENV
 
