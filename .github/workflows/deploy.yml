@@ -1,32 +1,47 @@
 name: Deploy to Kubernetes
 
 on:
-  push:
-    branches: 
-      - test-workflow
-      - main
-    paths:
-      - 'redact-pdf/**/k8s/**'
-      - '.github/workflows/deploy.yml'
+  workflow_run:
+    workflows: ["Build & Push Docker Images"]  
+    types: [ completed ]
 
 jobs:
   deploy:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}   # déploie que si build OK
     runs-on: ubuntu-latest
-
+    environment: production       
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+   
+      - uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
 
-      - name: Set up kubectl
-        uses: azure/setup-kubectl@v3
+      - uses: azure/setup-kubectl@v3
         with:
           version: v1.27.3
 
-      - name: Configure Kubeconfig
+     
+      - name: Install kubeconfig
+        shell: bash
         run: |
-          echo "${{ secrets.KUBECONFIG_DEV }}" > kubeconfig
-          export KUBECONFIG=$(pwd)/kubeconfig
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBECONFIG_DEV }}" | base64 -d > $HOME/.kube/config
+          chmod 600 $HOME/.kube/config
+          echo "KUBECONFIG=$HOME/.kube/config" >> $GITHUB_ENV
 
+      
+      - name: Set images to sha tags
+        env:
+          SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          # Namespace supposé "default". Ajoute -n <ns> si besoin.
+          kubectl set image deployment/orchestrator      orchestrator=joreg/orchestrator:$SHA
+          kubectl set image deployment/extract-text      extract-text=joreg/extract-text:$SHA
+          kubectl set image deployment/anonymisation     anonymisation=joreg/anonymisation:$SHA
+          kubectl set image deployment/redact-pdf        redact-pdf=joreg/redact-pdf:$SHA
+          kubectl set image deployment/face-anonymisation face-anonymisation=joreg/face-anonymisation:$SHA
+
+   
       - name: Apply all k8s resources
         run: |
           kubectl apply -f redact-pdf/anonymisation/k8s
