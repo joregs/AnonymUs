@@ -27,8 +27,14 @@ jobs:
           echo "${{ secrets.KUBECONFIG_B64 }}" | base64 -d > $HOME/.kube/config
           chmod 600 $HOME/.kube/config
           echo "KUBECONFIG=$HOME/.kube/config" >> $GITHUB_ENV
+          echo "kubeconfig written:"
+          head -n 10 $HOME/.kube/config
 
-
+      - name: Test kubectl connection
+        run: |
+          kubectl version --client
+          kubectl config get-contexts
+          kubectl get ns
       # - name: Configure kubeconfig
       #   run: |
       #     mkdir -p $HOME/.kube
