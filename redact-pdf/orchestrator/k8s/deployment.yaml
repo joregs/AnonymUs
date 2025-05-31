@@ -21,10 +21,10 @@ spec:
             - containerPort: 80
           env:
             - name: EXTRACT_URL
-              value: http://extract-text.anonymus.svc.cluster.local/extract-text/compute
+              value: http://extract-text-service.anonymus.svc.cluster.local/extract-text/compute
             - name: ANONYMISATION_URL
-              value: http://anonymisation.anonymus.svc.cluster.local/anonymisation/compute
+              value: http://anonymisation-service.anonymus.svc.cluster.local/anonymisation/compute
             - name: REDACT_URL
-              value: http://redact-pdf.anonymus.svc.cluster.local/redact-pdf/compute
+              value: http://redact-pdf-service.anonymus.svc.cluster.local/redact-pdf/compute
             - name: FACE_ANONYMISATION_URL
-              value: http://face-anonymisation.anonymus.svc.cluster.local/face-anonymisation/compute
+              value: http://face-anonymisation-service.anonymus.svc.cluster.local/face-anonymisation/compute
