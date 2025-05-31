@@ -20,12 +20,19 @@ jobs:
         with:
           version: v1.27.3
 
-      - name: Configure kubeconfig
+
+      - name: Decode and write kubeconfig
         run: |
-          mkdir -p $HOME/.kube
-          echo "${{ secrets.KUBECONFIG_DEV }}" > $HOME/.kube/config
+          echo "${{ secrets.KUBECONFIG_B64 }}" | base64 -d > $HOME/.kube/config
           chmod 600 $HOME/.kube/config
           echo "KUBECONFIG=$HOME/.kube/config" >> $GITHUB_ENV
+
+      # - name: Configure kubeconfig
+      #   run: |
+      #     mkdir -p $HOME/.kube
+      #     echo "${{ secrets.KUBECONFIG_DEV }}" > $HOME/.kube/config
+      #     chmod 600 $HOME/.kube/config
+      #     echo "KUBECONFIG=$HOME/.kube/config" >> $GITHUB_ENV
 
       - name: Apply all Kubernetes manifests
         run: |
