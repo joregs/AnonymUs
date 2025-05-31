@@ -17,6 +17,8 @@ from fastapi.templating import Jinja2Templates
 from typing import List, Dict
 from enum import Enum
 from uuid import UUID
+from urllib.parse import urljoin
+
 
 from pydantic import BaseModel
 
@@ -223,6 +225,12 @@ async def _process_task(service_task: ServiceTaskBase) -> None:
             output_key = f"redacted/{uuid.uuid4()}_{filename}"
             s3.upload_file(redacted_local, service_task.s3_bucket, output_key)
             outputs.append(output_key)
+            print(output_key)
+
+            print("Liste des fichiers dans le bucket redacted/")
+            response = s3.list_objects_v2(Bucket=service_task.s3_bucket, Prefix="redacted/")
+            for obj in response.get("Contents", []):
+                print("-", obj["Key"])
 
         # -----------------------------------------------------------------
         # 4. FINISHED – callback et mise à jour du task object
@@ -242,11 +250,12 @@ async def _process_task(service_task: ServiceTaskBase) -> None:
 
             update = TaskUpdate(
                 service=str(service_task.task.service_id),       
-                url=urljoin("https://anonymus.kube.isc.heia-fr.ch", "redacted/"),       
+                url="https://anonymus.kube.isc.heia-fr.ch",       
                 data_out=outputs,                                 
                 status=TaskStatus.FINISHED,
             )
 
+            print(update.dict(exclude_none=True))
             resp = requests.patch(
                 service_task.callback_url,
                 json=update.dict(exclude_none=True),
@@ -254,9 +263,8 @@ async def _process_task(service_task: ServiceTaskBase) -> None:
             )
             print("PATCH : ", resp.status_code, resp.text)
             resp.raise_for_status()
-        except Exception:  
-            print("error lors du patch correct")
-            pass
+        except Exception as e:
+            print("error lors du patch correct:", str(e))
 
     except Exception as exc:
         TASKS[task_id] = TaskStatus.ERROR
