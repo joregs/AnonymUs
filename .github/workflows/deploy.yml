@@ -30,11 +30,11 @@ jobs:
           echo "kubeconfig written:"
           head -n 10 $HOME/.kube/config
 
-      - name: Test kubectl connection
-        run: |
-          kubectl version --client
-          kubectl config get-contexts
-          kubectl get ns
+      # - name: Test kubectl connection
+      #   run: |
+      #     kubectl version --client
+      #     kubectl config get-contexts
+      #     kubectl get ns
       # - name: Configure kubeconfig
       #   run: |
       #     mkdir -p $HOME/.kube
