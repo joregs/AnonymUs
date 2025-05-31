@@ -23,9 +23,11 @@ jobs:
 
       - name: Decode and write kubeconfig
         run: |
+          mkdir -p $HOME/.kube
           echo "${{ secrets.KUBECONFIG_B64 }}" | base64 -d > $HOME/.kube/config
           chmod 600 $HOME/.kube/config
           echo "KUBECONFIG=$HOME/.kube/config" >> $GITHUB_ENV
+
 
       # - name: Configure kubeconfig
       #   run: |
