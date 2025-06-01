@@ -222,13 +222,13 @@ async def _process_task(service_task: ServiceTaskBase) -> None:
             print("Saving...")
 
             TASKS[task_id] = TaskStatus.SAVING
-            output_key = f"redacted/{uuid.uuid4()}_{filename}"
+            output_key = f"{uuid.uuid4()}_{filename}"
             s3.upload_file(redacted_local, service_task.s3_bucket, output_key)
             outputs.append(output_key)
             print(output_key)
 
             print("Liste des fichiers dans le bucket redacted/")
-            response = s3.list_objects_v2(Bucket=service_task.s3_bucket, Prefix="redacted/")
+            response = s3.list_objects_v2(Bucket=service_task.s3_bucket)
             for obj in response.get("Contents", []):
                 print("-", obj["Key"])
 
@@ -244,7 +244,6 @@ async def _process_task(service_task: ServiceTaskBase) -> None:
             print("outputs :")
             print(outputs)
 
-            print(urljoin("https://anonymus.kube.isc.heia-fr.ch", "redacted/"))
             print(str(service_task.task.service_id))
 
 
