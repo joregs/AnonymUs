@@ -53,9 +53,9 @@ jobs:
 
       - name: Configure DVC remote
         run: |
-          dvc remote add -d modelstore s3://ton-bucket/path
-          dvc remote modify modelstore endpointurl ${{ env.AWS_ENDPOINT_URL }}
-          dvc remote modify modelstore region ${{ env.AWS_REGION }}
+          dvc remote add -d modelstore s3://pdfs
+          dvc remote modify modelstore endpointurl https://minio-anonymus.kube-ext.isc.heia-fr.ch
+          dvc remote modify modelstore region us-east-1
 
       - name: dvc pull
         if: matrix.service == 'anonymisation'
