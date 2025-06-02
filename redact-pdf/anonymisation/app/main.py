@@ -79,7 +79,7 @@ else:
         cfg.id2label, cfg.label2id = id2label, label2id
 
         model = AutoModelForTokenClassification.from_pretrained(
-            BASE_MODEL_PATH, config=cfg, loc al_files_only=True
+            BASE_MODEL_PATH, config=cfg, local_files_only=True
         )
         model.eval()
 
