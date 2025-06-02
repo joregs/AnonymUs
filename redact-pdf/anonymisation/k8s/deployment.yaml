@@ -16,6 +16,6 @@ spec:
       containers:
       - name: anonymisation
         imagePullPolicy: Always
-        image: philomeister/anonymisation:latest
+        image: joreg/anonymisation:latest
         ports:
         - containerPort: 80
