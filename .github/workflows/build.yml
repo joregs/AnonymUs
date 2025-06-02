@@ -76,9 +76,11 @@ jobs:
       - name: Build & push ${{ matrix.service }}
         uses: docker/build-push-action@v5
         with:
-          context: ./${{ matrix.service }}            
-          file: ./${{ matrix.service }}/Dockerfile
+          context: ./redact-pdf/${{ matrix.service }}
+          file: ./redact-pdf/${{ matrix.service }}/Dockerfile
           push: true
+          
           tags: |
             joreg/${{ matrix.service }}:${{ github.sha }}
             joreg/${{ matrix.service }}:latest
+
