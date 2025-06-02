@@ -58,10 +58,17 @@ jobs:
           dvc remote modify modelstore region ${{ env.AWS_REGION }}
 
       - name: dvc pull
+        if: matrix.service == 'anonymisation'
         run: dvc pull -v -r ${{ env.DVC_REMOTE }}
         env:
           AWS_ACCESS_KEY_ID:     ${{ secrets.MINIO_ACCESS_KEY }}   
           AWS_SECRET_ACCESS_KEY: ${{ secrets.MINIO_SECRET_KEY }}
+
+      - name: Vérification du modèle après dvc pull
+        if: matrix.service == 'anonymisation'
+        run: |
+          ls -lh ./app/base_model
+          cat ./app/base_model/config.json || echo "config.json non présent ou corrompu"
 
       # ────────────────────────────────────────────────
       # 2) Construction & push de l’image Docker
