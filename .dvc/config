@@ -1,0 +1,6 @@
+[core]
+    remote = modelstore
+['remote "modelstore"']
+    url = s3://pdfs
+    endpointurl = https://minio-anonymus.kube-ext.isc.heia-fr.ch
+    region = us-east-1
