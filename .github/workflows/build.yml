@@ -29,6 +29,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+        
+      - name: Vérifier le fichier .dvc/config
+        run: |
+          ls -l .dvc/config
+          cat .dvc/config
+
       # ────────────────────────────────────────────────
       # 1) Rétablir les artefacts DVC depuis MinIO
       # ────────────────────────────────────────────────
@@ -44,6 +50,12 @@ jobs:
           key: dvc-${{ github.sha }}
           restore-keys: |
             dvc-
+
+      - name: Configure DVC remote
+        run: |
+          dvc remote add -d modelstore s3://ton-bucket/path
+          dvc remote modify modelstore endpointurl ${{ env.AWS_ENDPOINT_URL }}
+          dvc remote modify modelstore region ${{ env.AWS_REGION }}
 
       - name: dvc pull
         run: dvc pull -v -r ${{ env.DVC_REMOTE }}
