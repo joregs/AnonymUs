@@ -2,3 +2,4 @@ pdfs/*
 Archives/*
 redact-pdf/anonymisation/app/frenchNerModelOld/*
 redact-pdf/anonymisation/app/base_model/*
+redact-pdf/kubeconfig

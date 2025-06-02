@@ -16,6 +16,10 @@ services:
       - face-anonymisation
     environment:
       - PYTHONUNBUFFERED=1
+      - EXTRACT_URL=http://extract-text/extract-text/compute
+      - ANONYMISATION_URL=http://anonymisation/anonymisation/compute
+      - REDACT_URL=http://redact-pdf/redact-pdf/compute
+      - FACE_ANONYMISATION_URL=http://face-anonymisation/face-anonymisation/compute
 
   extract-text:
     build:

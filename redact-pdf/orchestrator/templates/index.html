@@ -1,18 +1,54 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fr">
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>AnonymUS</title>
     <link rel="stylesheet" href="/static/style.css">
+    <style>
+        /* Basic spacing for the demo; remove if handled in style.css */
+        body {
+            font-family: system-ui, sans-serif;
+            padding: 2rem;
+        }
+        fieldset {
+            margin-top: 1rem;
+            border: 1px solid #ccc;
+            border-radius: 0.5rem;
+            padding: 1rem;
+        }
+        fieldset legend {
+            font-weight: 600;
+        }
+        label {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-block: 0.25rem;
+        }
+    </style>
 </head>
 <body>
     <h1>AnonymUS</h1>
-    <p>Upload a PDF file and we’ll anonymize personal information automatically.</p>
+    <p>Téléversez un fichier PDF et choisissez quelles informations personnelles vous souhaitez masquer automatiquement.</p>
+
     <form id="uploadForm">
         <input type="file" name="file" accept="application/pdf" required />
+
+        <fieldset>
+            <legend>Informations à masquer</legend>
+            <label><input type="checkbox" name="mask_faces" checked /> Visages</label>
+            <label><input type="checkbox" name="mask_person_names" checked /> Noms de personnes</label>
+            <label><input type="checkbox" name="mask_organizations" checked /> Noms d'organisations</label>
+            <label><input type="checkbox" name="mask_locations" checked /> Localisations</label>
+            <label><input type="checkbox" name="mask_emails" checked /> Emails</label>
+            <label><input type="checkbox" name="mask_phones" checked /> Téléphones</label>
+            <label><input type="checkbox" name="mask_dates" checked /> Dates</label>
+            <label><input type="checkbox" name="mask_other" checked /> Autres infos (URLs, AVS, ...)</label>
+        </fieldset>
+
         <br/>
-        <button type="submit">Anonymize PDF</button>
+        <button type="submit">Anonymiser le PDF</button>
     </form>
 
     <script>
@@ -31,6 +67,7 @@
             document.body.appendChild(a);
             a.click();
             a.remove();
+            window.URL.revokeObjectURL(url);
         });
     </script>
 </body>

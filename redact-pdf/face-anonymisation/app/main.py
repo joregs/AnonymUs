@@ -53,6 +53,7 @@ def download_pdf_from_s3(local_path: str, session_id: str, filename: str) -> boo
 class RedactPayload(BaseModel):
     session_id: str
     filename:  str
+    mask_faces: bool
 
 # ------------------------------------------------------------------ #
 # Endpoint
@@ -64,25 +65,30 @@ async def process_pdf(payload: RedactPayload):
 
     log(f"📥 request: session_id={session_id}, filename={filename}")
 
-    # 1️⃣  Chemin local fixe dans /tmp
     input_path = f"/tmp/{filename}"
 
     if not download_pdf_from_s3(input_path, session_id, filename):
         return PlainTextResponse("File not found in S3", status_code=404)
 
-    # 2️⃣  Chemin de sortie : /tmp/blurred_<filename>
     out_path = f"/tmp/blurred_{filename}"
 
-    try:
-        blur_faces(input_path, out_path)
-    except Exception:
-        log(traceback.format_exc())
-        raise HTTPException(500, "Face blurring failed")
+    if payload.mask_faces : 
+        try:
+            blur_faces(input_path, out_path)
+        except Exception:
+            log(traceback.format_exc())
+            raise HTTPException(500, "Face blurring failed")
 
-    log(f"✅ faces blurred: {out_path}")
+        log(f"✅ faces blurred: {out_path}")
 
-    return FileResponse(
-        path=out_path,
-        filename=os.path.basename(out_path),
-        media_type="application/pdf",
-    )
+        return FileResponse(
+            path=out_path,
+            filename=os.path.basename(out_path),
+            media_type="application/pdf",
+        )
+    else :
+        return FileResponse(
+            path=input_path,
+            filename=os.path.basename(input_path),
+            media_type="application/pdf",
+        )

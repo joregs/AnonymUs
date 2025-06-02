@@ -10,7 +10,7 @@ import uuid
 from pathlib import Path
 
 import requests
-from fastapi import BackgroundTasks, FastAPI, File, HTTPException, Request, UploadFile
+from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -300,7 +300,17 @@ async def index(request: Request):
 
 
 @app.post("/pipeline")
-async def process_pipeline(background_tasks: BackgroundTasks, file: UploadFile = File(...)):
+async def process_pipeline(background_tasks: BackgroundTasks, file: UploadFile = File(...),
+    mask_faces: bool = Form(False),
+    mask_person_names: bool = Form(False),
+    mask_organizations: bool = Form(False),
+    mask_locations: bool = Form(False),
+    mask_emails: bool = Form(False),
+    mask_phones: bool = Form(False),
+    mask_dates: bool = Form(False),
+    mask_other: bool = Form(False),
+):
+# async def process_pipeline(background_tasks: BackgroundTasks, file: UploadFile = File(...)):
     """Chaîne complète : upload, extract, anonymise, redact, download."""
     session_id = str(uuid.uuid4())
     session_dir = os.path.join(tempfile.gettempdir(), session_id)
@@ -335,12 +345,32 @@ async def process_pipeline(background_tasks: BackgroundTasks, file: UploadFile =
     # ---------------------------------------------------------------------
     # 2. Anonymisation
     # ---------------------------------------------------------------------
+
+    mask_options: list[str] = []
+    if mask_faces:           mask_options.append("faces")
+    if mask_person_names:    mask_options.append("person_names")
+    if mask_organizations:   mask_options.append("organizations")
+    if mask_locations:       mask_options.append("locations")
+    if mask_emails:          mask_options.append("emails")
+    if mask_phones:          mask_options.append("phones")
+    if mask_dates:           mask_options.append("dates")
+    if mask_other:           mask_options.append("other")
+
     print(f"[{session_id}]  Calling anonymisation …")
+
     anonymise_resp = requests.post(
         ANONYMISATION_URL,
-        json={"text": extracted_text},
+        json={
+            "text": extracted_text,
+            "mask": mask_options   
+        },
         timeout=TIMEOUT,
     )
+    # anonymise_resp = requests.post(
+    #     ANONYMISATION_URL,
+    #     json={"text": extracted_text},
+    #     timeout=TIMEOUT,
+    # )
     if not anonymise_resp.ok:
         raise HTTPException(status_code=502, detail="anonymisation service failed")
 
@@ -388,7 +418,7 @@ async def process_pipeline(background_tasks: BackgroundTasks, file: UploadFile =
     payload = {
         "session_id": session_id,
         "filename": object_name,
-        # "word": to_anonymize,
+        "mask_faces" : mask_faces
     }
 
     # ...

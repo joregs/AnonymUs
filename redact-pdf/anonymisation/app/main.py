@@ -7,6 +7,7 @@ All resources are local:
 
 import sys, re, string
 from pathlib import Path
+from typing import List, Set, Dict, Optional
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -25,6 +26,35 @@ id2label         = {i: l for i, l in enumerate(LABELS)}
 label2id         = {l: i for i, l in id2label.items()}
 ENTITY_GROUPS    = {"PER", "ORG", "LOC"}
 SCORE_THRESHOLD  = 0.01
+
+MASK_CATEGORIES = {
+    "faces",          # laissé pour compatibilité (géré par le service image)
+    "person_names",
+    "organizations",
+    "locations",
+    "emails",
+    "phones",
+    "dates",
+    "other",
+}
+# NER → catégories mask  ----------------------------------------------- 
+NER_CATEGORY_MAP: Dict[str, Set[str]] = {
+    "person_names":  {"PER"},
+    "organizations": {"ORG"},
+    "locations":     {"LOC"},
+}
+
+# Regex → catégories mask  --------------------------------------------- 
+REGEX_CATEGORY_MAP: Dict[str, List[str]] = {
+    "emails":  ["email"],
+    "phones":  ["phone_fr", "phone_ch", "phone_int"],
+    "dates":   ["date"],
+    "other":   [
+        "siret", "insee", "avs", "iban_fr", "iban_ch",
+        "credit_card", "postal_code_fr", "postal_code_ch",
+        "ip_v4", "mac", "url", "handle",
+    ],
+}
 
 # ────────────────────────────────────────────────────────────────────────────
 # MODEL LOADING
@@ -77,22 +107,28 @@ REGEX_PATTERNS = {
     "handle":        r"""(?<!\w)@\w{3,}\b(?!\.\w)""",
 }
 
-def _regex_entities(text: str) -> set[str]:
+# ────────────────────────────────────────────────────────────
+# HELPERS
+# ────────────────────────────────────────────────────────────
+
+
+def _regex_entities(text: str, allowed: Set[str]) -> set[str]:          # MOD
+    """Renvoie les hits Regex dont les clés sont dans *allowed*."""
     out = set()
     for lab, pat in REGEX_PATTERNS.items():
+        if lab not in allowed:
+            continue
         hits = re.findall(pat, text, flags=re.IGNORECASE | re.VERBOSE)
         if hits:
             print(f"[DEBUG] {lab}: {hits}", file=sys.stderr)
             out.update(map(str.strip, hits))
     return out
 
-# ────────────────────────────────────────────────────────────────────────────
-# HELPERS
-# ────────────────────────────────────────────────────────────────────────────
-def _filter_entities(ents, raw: str) -> set[str]:
+
+def _filter_entities(ents, raw: str, allowed_groups: Set[str]) -> set[str]:  # MOD
     spans = set()
     for e in ents:
-        if e.get("entity_group") not in ENTITY_GROUPS:
+        if e.get("entity_group") not in allowed_groups:
             continue
         if e.get("score", 0) < SCORE_THRESHOLD:
             continue
@@ -104,6 +140,7 @@ def _filter_entities(ents, raw: str) -> set[str]:
                 and not all(c in string.punctuation for c in text_span)):
             spans.add(text_span)
     print(f"[DEBUG] NER spans: {sorted(spans)}", file=sys.stderr)
+    return spans
     return spans
 
 def _clean(items):
@@ -119,13 +156,46 @@ def _clean(items):
 # ────────────────────────────────────────────────────────────────────────────
 class TextInput(BaseModel):
     text: str
+    mask: Optional[List[str]] = None  
 
 @app.post("/compute")
 async def anonymize_text(payload: TextInput):
-    ents = ner_pipeline(payload.text)
-    ner_items   = _filter_entities(ents, payload.text)
-    regex_items = _regex_entities(payload.text)
-    return {"anonymize": _clean(ner_items.union(regex_items))}
+    print("Textinput mask: ")
+    print(payload.mask)
+    # Catégories à masquer
+    selected: Set[str] = (
+        set(payload.mask or MASK_CATEGORIES) & MASK_CATEGORIES
+    )
+    if not selected:
+        # rien sélectionné = on flag rien
+        return {"anonymize": []}
+
+    # Mapping NER selon masque
+    allowed_ner_groups: Set[str] = {
+        grp
+        for cat, groups in NER_CATEGORY_MAP.items()
+        if cat in selected
+        for grp in groups
+    }
+
+    # Mapping regex selon masque 
+    allowed_regex_keys: Set[str] = {
+        key
+        for cat, keys in REGEX_CATEGORY_MAP.items()
+        if cat in selected
+        for key in keys
+    }
+
+    # Inference NER + regex 
+    ents         = ner_pipeline(payload.text)
+    ner_items    = _filter_entities(ents, payload.text, allowed_ner_groups)
+    regex_items  = _regex_entities(payload.text, allowed_regex_keys)
+
+    # Nettoyage / union 
+    
+    to_redact = _clean(ner_items.union(regex_items))
+    return {"anonymize": to_redact}
+
 
 @app.exception_handler(HTTPException)
 async def http_error(_, exc: HTTPException):
