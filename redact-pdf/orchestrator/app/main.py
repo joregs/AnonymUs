@@ -205,6 +205,7 @@ async def _process_task(service_task: ServiceTaskBase) -> None:
             face_payload = {
                 "session_id": session_id,
                 "filename": object_name,
+                "mask_faces": False
             }
             face_resp = requests.post(
                 FACE_ANONYMISATION_URL, json=face_payload, timeout=TIMEOUT * 2
