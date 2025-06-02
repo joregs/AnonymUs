@@ -59,23 +59,38 @@ REGEX_CATEGORY_MAP: Dict[str, List[str]] = {
 # ────────────────────────────────────────────────────────────────────────────
 # MODEL LOADING
 # ────────────────────────────────────────────────────────────────────────────
+
+from transformers.utils import logging
+logging.set_verbosity_error()  # Réduire le bruit de transformers
+
+tokenizer = None
+model = None
+ner_pipeline = None
+print("[DEBUG] Contents of BASE_MODEL_PATH:", list(Path(BASE_MODEL_PATH).glob("*")))
+
 if not Path(BASE_MODEL_PATH).is_dir():
-    
-    raise RuntimeError("Model directory missing")
+    print("[DEBUG] Contents of BASE_MODEL_PATH:", list(Path(BASE_MODEL_PATH).glob("*")))
 
-tokenizer = AutoTokenizer.from_pretrained(BASE_MODEL_PATH, local_files_only=True)
-cfg       = AutoConfig.from_pretrained(BASE_MODEL_PATH, local_files_only=True)
-cfg.id2label, cfg.label2id = id2label, label2id
+    print(f"[ERROR] Model path {BASE_MODEL_PATH} does not exist.", file=sys.stderr)
+else:
+    try:
+        tokenizer = AutoTokenizer.from_pretrained(BASE_MODEL_PATH, local_files_only=True)
+        cfg = AutoConfig.from_pretrained(BASE_MODEL_PATH, local_files_only=True)
+        cfg.id2label, cfg.label2id = id2label, label2id
 
-model = AutoModelForTokenClassification.from_pretrained(
-    BASE_MODEL_PATH, config=cfg, local_files_only=True
-)
-model.eval()
+        model = AutoModelForTokenClassification.from_pretrained(
+            BASE_MODEL_PATH, config=cfg, loc al_files_only=True
+        )
+        model.eval()
 
-ner_pipeline = pipeline(
-    "ner", model=model, tokenizer=tokenizer, aggregation_strategy="average"
-)
+        ner_pipeline = pipeline(
+            "ner", model=model, tokenizer=tokenizer, aggregation_strategy="average"
+        )
 
+        print("[INFO] NER model loaded successfully.")
+
+    except Exception as e:
+        print(f"[ERROR] Failed to load model: {e}", file=sys.stderr)
 # ────────────────────────────────────────────────────────────────────────────
 # FASTAPI APP
 # ────────────────────────────────────────────────────────────────────────────
