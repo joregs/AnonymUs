@@ -33,8 +33,10 @@ jobs:
       # 1) Rétablir les artefacts DVC depuis MinIO
       # ────────────────────────────────────────────────
       - name: Setup DVC
-        uses: iterative/setup-dvc@v1    
-
+        uses: iterative/setup-dvc@v1
+        with:
+          version: "latest" 
+        
       - name: Cache DVC
         uses: actions/cache@v4
         with:
