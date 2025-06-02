@@ -4,7 +4,8 @@ on:
   push:
     branches: [ main, test-workflow ]
     paths:
-      - 'redact-pdf/**'
+      - '**/*.py'                
+      - '**/*.dvc'               
       - '.github/workflows/**'
 
 jobs:
@@ -19,9 +20,38 @@ jobs:
           - redact-pdf
           - face-anonymisation
 
-    steps:
-      - uses: actions/checkout@v3
+    env:                            
+      DVC_REMOTE: modelstore
+      AWS_ENDPOINT_URL: https://minio-anonymus.kube-ext.isc.heia-fr.ch
+      AWS_REGION: us-east-1          
 
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # ────────────────────────────────────────────────
+      # 1) Rétablir les artefacts DVC depuis MinIO
+      # ────────────────────────────────────────────────
+      - name: Setup DVC
+        uses: iterative/setup-dvc@v1    
+
+      - name: Cache DVC
+        uses: actions/cache@v4
+        with:
+          path: .dvc/cache
+          key: dvc-${{ github.sha }}
+          restore-keys: |
+            dvc-
+
+      - name: dvc pull
+        run: dvc pull -v -r ${{ env.DVC_REMOTE }}
+        env:
+          AWS_ACCESS_KEY_ID:     ${{ secrets.MINIO_ACCESS_KEY }}   
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.MINIO_SECRET_KEY }}
+
+      # ────────────────────────────────────────────────
+      # 2) Construction & push de l’image Docker
+      # ────────────────────────────────────────────────
       - uses: docker/setup-buildx-action@v3
 
       - uses: docker/login-action@v2
@@ -32,10 +62,9 @@ jobs:
       - name: Build & push ${{ matrix.service }}
         uses: docker/build-push-action@v5
         with:
-          context: ./redact-pdf/${{ matrix.service }}
-          file: ./redact-pdf/${{ matrix.service }}/Dockerfile
+          context: ./${{ matrix.service }}            
+          file: ./${{ matrix.service }}/Dockerfile
           push: true
-          
           tags: |
             joreg/${{ matrix.service }}:${{ github.sha }}
             joreg/${{ matrix.service }}:latest
