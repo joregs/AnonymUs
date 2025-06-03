@@ -62,7 +62,6 @@ class RedactPayload(BaseModel):
 async def process_pdf(payload: RedactPayload):
     session_id = payload.session_id
     filename   = payload.filename         
-
     log(f"📥 request: session_id={session_id}, filename={filename}")
 
     input_path = f"/tmp/{filename}"

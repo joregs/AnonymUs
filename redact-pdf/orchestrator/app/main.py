@@ -10,6 +10,8 @@ import uuid
 from pathlib import Path
 
 import requests
+import time
+from requests.exceptions import Timeout, RequestException
 from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
@@ -21,6 +23,7 @@ from urllib.parse import urljoin
 
 
 from pydantic import BaseModel
+
 
 
 # ---------------------------------------------------------------------------
@@ -38,7 +41,7 @@ EXTRACT_URL = os.getenv("EXTRACT_URL", "http://extract-text-service.anonymus.svc
 ANONYMISATION_URL = os.getenv("ANONYMISATION_URL", "http://anonymisation-service.anonymus.svc.cluster.local/anonymisation/compute")
 REDACT_URL = os.getenv("REDACT_URL", "http://redact-pdf-service.anonymus.svc.cluster.local/redact-pdf/compute")
 FACE_ANONYMISATION_URL = os.getenv("FACE_ANONYMISATION_URL", "http://face-anonymisation-service.anonymus.svc.cluster.local/face-anonymisation/compute")
-TIMEOUT = 60  # seconds per micro‑service call
+TIMEOUT = 15  # seconds per micro‑service call
 
 
 # ---------------------------------------------------------------------------
@@ -162,18 +165,19 @@ async def _process_task(service_task: ServiceTaskBase) -> None:
 
             # extract-text
             with open(input_path, "rb") as f:
-                extract_resp = requests.post(
+                extract_resp = post_with_retries(
                     EXTRACT_URL,
                     files={"file": (filename, f, "application/pdf")},
                     data={"session_id": session_id},
                     timeout=TIMEOUT,
                 )
+                
             extract_resp.raise_for_status()
             extracted_text = extract_resp.text
 
             print("anonymisation...")
             # anonymisation
-            anonymise_resp = requests.post(
+            anonymise_resp = post_with_retries(
                 ANONYMISATION_URL,
                 json={"text": extracted_text},
                 timeout=TIMEOUT,
@@ -195,7 +199,7 @@ async def _process_task(service_task: ServiceTaskBase) -> None:
                 "filename": filename,
                 "word": to_anonymize,
             }
-            redact_resp = requests.post(REDACT_URL, json=payload, timeout=TIMEOUT * 2)
+            redact_resp = post_with_retries(REDACT_URL, json=payload, timeout=TIMEOUT * 2)
             redact_resp.raise_for_status()
             object_name = redact_resp.json()["filename"]
 
@@ -207,7 +211,7 @@ async def _process_task(service_task: ServiceTaskBase) -> None:
                 "filename": object_name,
                 "mask_faces": True
             }
-            face_resp = requests.post(
+            face_resp = post_with_retries(
                 FACE_ANONYMISATION_URL, json=face_payload, timeout=TIMEOUT * 2
             )
             face_resp.raise_for_status()
@@ -292,6 +296,22 @@ async def _process_task(service_task: ServiceTaskBase) -> None:
         raise
 
 
+
+def post_with_retries(url, **kwargs):
+    max_retries = 2
+    for attempt in range(1, max_retries + 1):
+        try:
+            response = requests.post(url, **kwargs)
+            response.raise_for_status()
+            return response
+        except Timeout:
+            print(f"[Timeout] Tentative {attempt}/{max_retries} échouée pour {url}")
+            if attempt == max_retries:
+                print(f"[Erreur] Service {url} inaccessible après {max_retries} tentatives.")
+                raise
+            time.sleep(2)
+
+
 # ---------------------------------------------------------------------------
 # WEBAPP
 # ---------------------------------------------------------------------------
@@ -301,7 +321,10 @@ async def index(request: Request):
 
 
 @app.post("/pipeline")
-async def process_pipeline(background_tasks: BackgroundTasks, file: UploadFile = File(...),
+async def process_pipeline(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
     mask_faces: bool = Form(False),
     mask_person_names: bool = Form(False),
     mask_organizations: bool = Form(False),
@@ -311,42 +334,39 @@ async def process_pipeline(background_tasks: BackgroundTasks, file: UploadFile =
     mask_dates: bool = Form(False),
     mask_other: bool = Form(False),
 ):
-# async def process_pipeline(background_tasks: BackgroundTasks, file: UploadFile = File(...)):
-    """Chaîne complète : upload, extract, anonymise, redact, download."""
+
     session_id = str(uuid.uuid4())
     session_dir = os.path.join(tempfile.gettempdir(), session_id)
     os.makedirs(session_dir, exist_ok=True)
-    print(f"[{session_id}] 🗂️  Session directory : {session_dir}")
 
-    # ---------------------------------------------------------------------
-    # 0. Sauvegarde fichier d'entrée
-    # ---------------------------------------------------------------------
+    # 0. Sauvegarde du fichier d’entrée
     input_path = os.path.join(session_dir, file.filename)
     with open(input_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
-    print(f"[{session_id}] 📄 File saved : {input_path}")
 
-    # ---------------------------------------------------------------------
     # 1. Extraction de texte
-    # ---------------------------------------------------------------------
-    print(f"[{session_id}] 🔍 Calling extract‑text …")
-    with open(input_path, "rb") as f:
-        extract_resp = requests.post(
-            EXTRACT_URL,
-            files={"file": (file.filename, f, "application/pdf")},
-            data={"session_id": session_id},
-            timeout=TIMEOUT,
+    try:
+        with open(input_path, "rb") as f:
+            extract_resp = post_with_retries(
+                EXTRACT_URL,
+                files={"file": (file.filename, f, "application/pdf")},
+                data={"session_id": session_id},
+                timeout=TIMEOUT,
+            )
+    except Timeout:
+        return templates.TemplateResponse(
+            "index.html",
+            {
+                "request": request,
+                "error": "Le service d’extraction a mis trop de temps à répondre (timeout)."
+            },
+            status_code=504
         )
-    if not extract_resp.ok:
-        raise HTTPException(status_code=502, detail="extract‑text service failed")
+    # Si post_with_retries renvoie un autre RequestException, il remonte → 500
 
     extracted_text = extract_resp.text
-    print(f"[{session_id}] 📝 Extracted first 200 chars\n{extracted_text[:200]}")
 
-    # ---------------------------------------------------------------------
     # 2. Anonymisation
-    # ---------------------------------------------------------------------
-
     mask_options: list[str] = []
     if mask_faces:           mask_options.append("faces")
     if mask_person_names:    mask_options.append("person_names")
@@ -357,96 +377,82 @@ async def process_pipeline(background_tasks: BackgroundTasks, file: UploadFile =
     if mask_dates:           mask_options.append("dates")
     if mask_other:           mask_options.append("other")
 
-    print(f"[{session_id}]  Calling anonymisation …")
-
-    anonymise_resp = requests.post(
-        ANONYMISATION_URL,
-        json={
-            "text": extracted_text,
-            "mask": mask_options   
-        },
-        timeout=TIMEOUT,
-    )
-    # anonymise_resp = requests.post(
-    #     ANONYMISATION_URL,
-    #     json={"text": extracted_text},
-    #     timeout=TIMEOUT,
-    # )
-    if not anonymise_resp.ok:
-        raise HTTPException(status_code=502, detail="anonymisation service failed")
+    try:
+        anonymise_resp = post_with_retries(
+            ANONYMISATION_URL,
+            json={"text": extracted_text, "mask": mask_options},
+            timeout=TIMEOUT,
+        )
+    except Timeout:
+        return templates.TemplateResponse(
+            "index.html",
+            {
+                "request": request,
+                "error": "Le service d’anonymisation a mis trop de temps à répondre (timeout)."
+            },
+            status_code=504
+        )
 
     to_anonymize: list[str] = anonymise_resp.json().get("anonymize", [])
-    print(f"[{session_id}] 🧼 Words to redact : {to_anonymize}")
 
+    # Si rien à anonymiser, on retourne directement le PDF d’entrée
     if not to_anonymize:
-        print(f"[{session_id}]  Nothing to redact → returning original file")
         background_tasks.add_task(shutil.rmtree, session_dir, ignore_errors=True)
         return FileResponse(input_path, filename=file.filename, media_type="application/pdf")
 
-    # ---------------------------------------------------------------------
-    # 3. Redaction (PDF)
-    # ---------------------------------------------------------------------
-    payload = {
+    # 3. Redaction PDF
+    payload_redact = {
         "session_id": session_id,
         "filename": file.filename,
         "word": to_anonymize,
     }
-    print(f"[{session_id}] Calling redact‑pdf …")
-    redact_resp = requests.post(REDACT_URL, json=payload, timeout=TIMEOUT * 2)
-
-    if not redact_resp.ok:
-        print(
-            f"[{session_id}] Redact service {redact_resp.status_code} → {redact_resp.text[:300]}"
-        )
-        raise HTTPException(status_code=502, detail="redact‑pdf service failed")
-
-    # ---------------------------------------------------------------------
-    # 4. Anonymisation image
-    # ---------------------------------------------------------------------
-    # object_name = redact_resp
     try:
-        object_name = redact_resp.json()["filename"]
-    except (ValueError, KeyError):
-        raise HTTPException(
-            status_code=502,
-            detail="redact-pdf service: réponse JSON inattendue",
+        redact_resp = post_with_retries(
+            REDACT_URL,
+            json=payload_redact,
+            timeout=TIMEOUT * 2,
+        )
+    except Timeout:
+        return templates.TemplateResponse(
+            "index.html",
+            {
+                "request": request,
+                "error": "Le service de redaction PDF a mis trop de temps à répondre (timeout)."
+            },
+            status_code=504
         )
 
-    
+    object_name = redact_resp.json()["filename"]
 
-    print(f"[{session_id}] Calling face-anonymisation …")
-
-    payload = {
+    # 4. Face-anonymisation
+    payload_face = {
         "session_id": session_id,
         "filename": object_name,
-        "mask_faces" : mask_faces
+        "mask_faces": mask_faces,
     }
-
-    # ...
-    face_anon_resp = requests.post(FACE_ANONYMISATION_URL, json=payload, timeout=TIMEOUT * 2)
-
-    if not face_anon_resp.ok:
-        print(
-            f"[{session_id}] Face-anonymisation service {face_anon_resp.status_code} → {face_anon_resp.text[:300]}"
+    try:
+        face_anon_resp = post_with_retries(
+            FACE_ANONYMISATION_URL,
+            json=payload_face,
+            timeout=TIMEOUT * 2,
         )
-        raise HTTPException(status_code=502, detail="face-anonymisation service failed")
+    except Timeout:
+        return templates.TemplateResponse(
+            "index.html",
+            {
+                "request": request,
+                "error": "Le service de face-anonymisation a mis trop de temps à répondre (timeout)."
+            },
+            status_code=504
+        )
 
+    # On enregistre localement le PDF final
     redacted_path = os.path.join(session_dir, f"redacted_{file.filename}")
-    with open(redacted_path, "wb") as f:  # ✅ Fichier de sortie correct
-        f.write(face_anon_resp.content)
+    with open(redacted_path, "wb") as f_out:
+        f_out.write(face_anon_resp.content)
 
-    print(f"[{session_id}] Faces anonymised and saved: {redacted_path}")
-
-
-    # ---------------------------------------------------------------------
     # 5. Sauvegarde + réponse
-    # ---------------------------------------------------------------------
-    print(f"[{session_id}] Redacted PDF saved : {redacted_path}")
-
-    # Nettoyage asynchrone après l’envoi
     background_tasks.add_task(shutil.rmtree, session_dir, ignore_errors=True)
-    print(f"[{session_id}] Cleanup scheduled")
-
     return FileResponse(
         redacted_path,
         filename=f"redacted_{file.filename}",

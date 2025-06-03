@@ -6,10 +6,18 @@
     <title>AnonymUS</title>
     <link rel="stylesheet" href="/static/style.css">
     <style>
-        /* Basic spacing for the demo; remove if handled in style.css */
         body {
             font-family: system-ui, sans-serif;
             padding: 2rem;
+        }
+        .alert-danger {
+            color: #721c24;
+            background-color: #f8d7da;
+            border-color: #f5c6cb;
+            padding: 0.75rem 1.25rem;
+            margin-bottom: 1rem;
+            border: 1px solid transparent;
+            border-radius: 0.25rem;
         }
         fieldset {
             margin-top: 1rem;
@@ -31,6 +39,12 @@
 <body>
     <h1>AnonymUS</h1>
     <p>Téléversez un fichier PDF et choisissez quelles informations personnelles vous souhaitez masquer automatiquement.</p>
+
+    {% if error %}
+        <div class="alert-danger">
+            {{ error }}
+        </div>
+    {% endif %}
 
     <form id="uploadForm">
         <input type="file" name="file" accept="application/pdf" required />
@@ -54,20 +68,49 @@
     <script>
         document.getElementById("uploadForm").addEventListener("submit", async function(e) {
             e.preventDefault();
+
+            const existingAlert = document.querySelector(".alert-danger");
+            if (existingAlert) {
+                existingAlert.remove();
+            }
+
             const formData = new FormData(this);
             const response = await fetch('/pipeline', {
                 method: 'POST',
                 body: formData
             });
-            const blob = await response.blob();
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = "anonymized.pdf";
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            window.URL.revokeObjectURL(url);
+
+            if (!response.ok) {
+                const text = await response.text();
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(text, "text/html");
+                const divErreur = doc.querySelector(".alert-danger");
+                if (divErreur) {
+                    document.body.insertBefore(divErreur, document.getElementById("uploadForm"));
+                }
+                return;
+            }
+
+            const contentType = response.headers.get("Content-Type") || "";
+            if (contentType.includes("application/pdf")) {
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = "anonymized.pdf";
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                window.URL.revokeObjectURL(url);
+            } else {
+                const text = await response.text();
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(text, "text/html");
+                const divErreur = doc.querySelector(".alert-danger");
+                if (divErreur) {
+                    document.body.insertBefore(divErreur, document.getElementById("uploadForm"));
+                }
+            }
         });
     </script>
 </body>
