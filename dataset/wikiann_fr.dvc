@@ -1,0 +1,6 @@
+outs:
+- md5: ea1a408d5ce40668a3cabc340a070a65.dir
+  size: 8288770
+  nfiles: 10
+  hash: md5
+  path: wikiann_fr
