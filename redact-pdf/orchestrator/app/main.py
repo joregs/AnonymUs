@@ -41,7 +41,17 @@ EXTRACT_URL = os.getenv("EXTRACT_URL", "http://extract-text-service.anonymus.svc
 ANONYMISATION_URL = os.getenv("ANONYMISATION_URL", "http://anonymisation-service.anonymus.svc.cluster.local/anonymisation/compute")
 REDACT_URL = os.getenv("REDACT_URL", "http://redact-pdf-service.anonymus.svc.cluster.local/redact-pdf/compute")
 FACE_ANONYMISATION_URL = os.getenv("FACE_ANONYMISATION_URL", "http://face-anonymisation-service.anonymus.svc.cluster.local/face-anonymisation/compute")
-TIMEOUT = 15  # seconds per micro‑service call
+TIMEOUT = 20  # seconds per micro‑service call
+
+
+# -----------------------------------------------------------------------
+# Paramètres S3
+# -----------------------------------------------------------------------
+S3_ENDPOINT_URL = "https://minio-anonymus.kube-ext.isc.heia-fr.ch"
+S3_ACCESS_KEY   = "admin"
+S3_SECRET_KEY   = "SuperAnonym"
+S3_BUCKET       = "pdfs"
+S3_REGION       = "us-east-1"
 
 
 # ---------------------------------------------------------------------------
@@ -142,8 +152,10 @@ async def _process_task(service_task: ServiceTaskBase) -> None:
             region_name=service_task.s3_region,
             endpoint_url=service_task.s3_host,
             config=Config(signature_version="s3v4"),
-        )
-
+        )        
+        
+        input_keys = list(service_task.task.data_in)
+        
         local_inputs: List[str] = []
         for key in service_task.task.data_in:
             filename = os.path.basename(key)
@@ -167,6 +179,9 @@ async def _process_task(service_task: ServiceTaskBase) -> None:
             with open(input_path, "rb") as f:
                 extract_resp = post_with_retries(
                     EXTRACT_URL,
+                    s3_client=s3,
+                    bucket_name=service_task.s3_bucket,
+                    keys_to_delete=input_keys,
                     files={"file": (filename, f, "application/pdf")},
                     data={"session_id": session_id},
                     timeout=TIMEOUT,
@@ -179,6 +194,9 @@ async def _process_task(service_task: ServiceTaskBase) -> None:
             # anonymisation
             anonymise_resp = post_with_retries(
                 ANONYMISATION_URL,
+                s3_client=s3,
+                bucket_name=service_task.s3_bucket,
+                keys_to_delete=input_keys,
                 json={"text": extracted_text},
                 timeout=TIMEOUT,
             )
@@ -199,7 +217,14 @@ async def _process_task(service_task: ServiceTaskBase) -> None:
                 "filename": filename,
                 "word": to_anonymize,
             }
-            redact_resp = post_with_retries(REDACT_URL, json=payload, timeout=TIMEOUT * 2)
+            redact_resp = post_with_retries(
+                REDACT_URL,
+                s3_client=s3,
+                bucket_name=service_task.s3_bucket,
+                keys_to_delete=input_keys,
+                json=payload,
+                timeout=TIMEOUT,
+            )
             redact_resp.raise_for_status()
             object_name = redact_resp.json()["filename"]
 
@@ -212,7 +237,12 @@ async def _process_task(service_task: ServiceTaskBase) -> None:
                 "mask_faces": True
             }
             face_resp = post_with_retries(
-                FACE_ANONYMISATION_URL, json=face_payload, timeout=TIMEOUT * 2
+                FACE_ANONYMISATION_URL,
+                s3_client=s3,
+                bucket_name=service_task.s3_bucket,
+                keys_to_delete=input_keys,
+                json=face_payload,
+                timeout=TIMEOUT,
             )
             face_resp.raise_for_status()
 
@@ -258,7 +288,13 @@ async def _process_task(service_task: ServiceTaskBase) -> None:
                 data_out=outputs,                                 
                 status=TaskStatus.FINISHED,
             )
-
+            
+            for key_to_delete in input_keys:
+                try:
+                    s3.delete_object(Bucket=service_task.s3_bucket, Key=key_to_delete)
+                except Exception as e_del:
+                    print(f"Erreur suppression S3 (success) pour {key_to_delete}: {e_del}")
+            
             print(update.dict(exclude_none=True))
             resp = requests.patch(
                 service_task.callback_url,
@@ -297,8 +333,16 @@ async def _process_task(service_task: ServiceTaskBase) -> None:
 
 
 
-def post_with_retries(url, **kwargs):
-    max_retries = 2
+def post_with_retries(
+    url: str,
+    *,
+    s3_client=None,
+    bucket_name: str = None,
+    keys_to_delete: list[str] | None = None,
+    max_retries: int = 2,
+    backoff: float = 2.0,
+    **kwargs
+):
     for attempt in range(1, max_retries + 1):
         try:
             response = requests.post(url, **kwargs)
@@ -307,10 +351,15 @@ def post_with_retries(url, **kwargs):
         except Timeout:
             print(f"[Timeout] Tentative {attempt}/{max_retries} échouée pour {url}")
             if attempt == max_retries:
-                print(f"[Erreur] Service {url} inaccessible après {max_retries} tentatives.")
+                # Suppression S3 en cas de timeout sur la dernière tentative
+                if s3_client and bucket_name and keys_to_delete:
+                    for key in keys_to_delete:
+                        try:
+                            s3_client.delete_object(Bucket=bucket_name, Key=key)
+                            print(f"[S3] Supprimé après timeout : {key}")
+                        except Exception as e_del:
+                            print(f"[Erreur S3] Impossible de supprimer {key} : {e_del}")
                 raise
-            time.sleep(2)
-
 
 # ---------------------------------------------------------------------------
 # WEBAPP
@@ -339,6 +388,17 @@ async def process_pipeline(
     session_dir = os.path.join(tempfile.gettempdir(), session_id)
     os.makedirs(session_dir, exist_ok=True)
 
+    s3 = boto3.client(
+        "s3",
+        endpoint_url=S3_ENDPOINT_URL,
+        aws_access_key_id=S3_ACCESS_KEY,
+        aws_secret_access_key=S3_SECRET_KEY,
+        config=Config(signature_version="s3v4", s3={"addressing_style": "path"}),
+        region_name=S3_REGION,
+    )
+    
+    s3_input_key = f"sessions/{session_id}/{file.filename}"
+
     # 0. Sauvegarde du fichier d’entrée
     input_path = os.path.join(session_dir, file.filename)
     with open(input_path, "wb") as buffer:
@@ -352,6 +412,9 @@ async def process_pipeline(
                 files={"file": (file.filename, f, "application/pdf")},
                 data={"session_id": session_id},
                 timeout=TIMEOUT,
+                s3_client=s3,
+                bucket_name=S3_BUCKET,
+                keys_to_delete=[s3_input_key],
             )
     except Timeout:
         return templates.TemplateResponse(
@@ -382,6 +445,9 @@ async def process_pipeline(
             ANONYMISATION_URL,
             json={"text": extracted_text, "mask": mask_options},
             timeout=TIMEOUT,
+            s3_client=s3,
+            bucket_name=S3_BUCKET,
+            keys_to_delete=[s3_input_key],
         )
     except Timeout:
         return templates.TemplateResponse(
@@ -397,6 +463,11 @@ async def process_pipeline(
 
     # Si rien à anonymiser, on retourne directement le PDF d’entrée
     if not to_anonymize:
+        try:
+            s3.delete_object(Bucket=S3_BUCKET, Key=s3_input_key)
+            print(f"[S3] Supprimé (pas d’anonymisation) : {s3_input_key}")
+        except Exception as e_del:
+            print(f"[Erreur S3] Suppression (pas d’anonym.) pour {s3_input_key} : {e_del}")
         background_tasks.add_task(shutil.rmtree, session_dir, ignore_errors=True)
         return FileResponse(input_path, filename=file.filename, media_type="application/pdf")
 
@@ -410,7 +481,10 @@ async def process_pipeline(
         redact_resp = post_with_retries(
             REDACT_URL,
             json=payload_redact,
-            timeout=TIMEOUT * 2,
+            timeout=TIMEOUT,
+            s3_client=s3,
+            bucket_name=S3_BUCKET,
+            keys_to_delete=[s3_input_key],
         )
     except Timeout:
         return templates.TemplateResponse(
@@ -434,7 +508,10 @@ async def process_pipeline(
         face_anon_resp = post_with_retries(
             FACE_ANONYMISATION_URL,
             json=payload_face,
-            timeout=TIMEOUT * 2,
+            timeout=TIMEOUT,
+            s3_client=s3,
+            bucket_name=S3_BUCKET,
+            keys_to_delete=[s3_input_key],
         )
     except Timeout:
         return templates.TemplateResponse(
@@ -450,7 +527,13 @@ async def process_pipeline(
     redacted_path = os.path.join(session_dir, f"redacted_{file.filename}")
     with open(redacted_path, "wb") as f_out:
         f_out.write(face_anon_resp.content)
-
+    
+    try:
+        s3.delete_object(Bucket=S3_BUCKET, Key=s3_input_key)
+        print(f"[S3] Supprimé (pipeline réussie) : {s3_input_key}")
+    except Exception as e_del:
+        print(f"[Erreur S3] Suppression (fin normale) pour {s3_input_key} : {e_del}")
+        
     # 5. Sauvegarde + réponse
     background_tasks.add_task(shutil.rmtree, session_dir, ignore_errors=True)
     return FileResponse(

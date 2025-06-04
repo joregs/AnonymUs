@@ -8,7 +8,6 @@ from typing import List, Union
 import boto3
 from botocore.client import Config
 from botocore.exceptions import ClientError
-
 from app.blur_faces import blur_faces
 
 app = FastAPI(root_path="/face-anonymisation")
